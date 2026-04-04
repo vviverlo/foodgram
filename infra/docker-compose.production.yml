@@ -1,0 +1,49 @@
+# Запуск из каталога infra:
+#   docker compose -f docker-compose.production.yml --env-file .env up -d
+#
+# Перед первым запуском: собери фронт (npm run build в ../frontend) и заполни .env
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: foodgram-db
+    env_file: .env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    image: ${BACKEND_IMAGE}
+    build:
+      context: ../backend
+    container_name: foodgram-backend
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - media_value:/app/media
+      - static_value:/app/static
+
+  nginx:
+    image: nginx:1.25.4-alpine
+    container_name: foodgram-proxy
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.production.conf:/etc/nginx/conf.d/default.conf
+      - ../frontend/build:/usr/share/nginx/html/
+      - ../docs/:/usr/share/nginx/html/api/docs/
+      - media_value:/var/html/media
+      - static_value:/var/html/static
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  media_value:
+  static_value:

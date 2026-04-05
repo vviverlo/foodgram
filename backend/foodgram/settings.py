@@ -17,6 +17,9 @@ DEBUG = os.getenv('DJANGO_DEBUG', 'True').lower() in ('1', 'true', 'yes')
 _allowed = os.getenv('DJANGO_ALLOWED_HOSTS', '127.0.0.1,localhost')
 ALLOWED_HOSTS = [h.strip() for h in _allowed.split(',') if h.strip()]
 
+_csrf = os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', '')
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf.split(',') if o.strip()]
+
 
 # Application definition
 

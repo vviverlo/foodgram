@@ -22,7 +22,13 @@ class Command(BaseCommand):
         if options['path']:
             path = Path(options['path'])
         else:
-            path = Path(settings.BASE_DIR).parent / 'data' / 'ingredients.json'
+            # В образе бэкенда есть только /app — файл кладём в backend/data/.
+            # При запуске из клона репозитория сработает ../data (корень репо).
+            path = Path(settings.BASE_DIR) / 'data' / 'ingredients.json'
+            if not path.is_file():
+                alt = Path(settings.BASE_DIR).parent / 'data' / 'ingredients.json'
+                if alt.is_file():
+                    path = alt
 
         if not path.is_file():
             self.stderr.write(self.style.ERROR(f'Файл не найден: {path}'))

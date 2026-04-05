@@ -1,7 +1,5 @@
 from django.core.management.base import BaseCommand
-
 from recipes.models import Tag
-
 
 DEFAULT_TAGS = (
     ('Завтрак', 'breakfast'),
@@ -23,5 +21,8 @@ class Command(BaseCommand):
             if was_created:
                 created += 1
         self.stdout.write(
-            self.style.SUCCESS(f'Теги: создано новых {created}, всего в БД {Tag.objects.count()}.')
+            self.style.SUCCESS(
+                f'Теги: создано новых {created}, '
+                f'всего в БД {Tag.objects.count()}.'
+            )
         )

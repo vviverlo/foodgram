@@ -1,12 +1,11 @@
 from django.contrib.auth import get_user_model
 from djoser.views import UserViewSet as DjoserUserViewSet
+from recipes.fields import Base64ImageField
+from recipes.models import Subscription
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-
-from recipes.fields import Base64ImageField
-from recipes.models import Subscription
 
 from .serializers import SetAvatarSerializer, UserWithRecipesSerializer
 

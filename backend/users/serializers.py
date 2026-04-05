@@ -153,5 +153,7 @@ class SetAvatarSerializer(serializers.Serializer):
 
     def validate_avatar(self, value):
         if not value.startswith('data:image'):
-            raise serializers.ValidationError('Ожидается изображение в Base64.')
+            raise serializers.ValidationError(
+                'Ожидается изображение в Base64.',
+            )
         return value

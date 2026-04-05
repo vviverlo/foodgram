@@ -2,7 +2,10 @@ from rest_framework.permissions import SAFE_METHODS, BasePermission
 
 
 class IsAuthorOrReadOnly(BasePermission):
-    """GET — всем; POST — авторизованным; изменение/удаление — только автору рецепта."""
+    """
+    GET — всем; POST — авторизованным;
+    изменение/удаление — только автору рецепта.
+    """
 
     def has_permission(self, request, view):
         if request.method in SAFE_METHODS:

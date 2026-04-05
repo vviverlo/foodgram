@@ -118,5 +118,5 @@ jobs:
         run: |
           curl -fsS -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
             --data-urlencode "chat_id=${TG_CHAT}" \
-            --data-urlencode "text=✅ Foodgram: деплой успешен%0A📦 ${{ github.repository }}%0A🌿 ${{ github.ref_name }}%0A🔗 ${{ github.sha }}%0A👤 ${{ github.actor }}" \
+            --data-urlencode "text=✅ Foodgram: деплой успешен}" \
             --data-urlencode "disable_web_page_preview=true"

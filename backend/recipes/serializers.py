@@ -1,6 +1,5 @@
 from django.db import transaction
 from rest_framework import serializers
-
 from users.serializers import UserSerializer
 
 from .fields import Base64ImageField
@@ -22,7 +21,9 @@ class IngredientSerializer(serializers.ModelSerializer):
 class RecipeIngredientReadSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source='ingredient.id')
     name = serializers.CharField(source='ingredient.name')
-    measurement_unit = serializers.CharField(source='ingredient.measurement_unit')
+    measurement_unit = serializers.CharField(
+        source='ingredient.measurement_unit',
+    )
 
     class Meta:
         model = RecipeIngredient
@@ -70,7 +71,10 @@ class RecipeListSerializer(serializers.ModelSerializer):
             return False
         from .models import Favorite
 
-        return Favorite.objects.filter(user=request.user, recipe=obj).exists()
+        return Favorite.objects.filter(
+            user=request.user,
+            recipe=obj,
+        ).exists()
 
     def get_is_in_shopping_cart(self, obj):
         request = self.context.get('request')
@@ -78,7 +82,10 @@ class RecipeListSerializer(serializers.ModelSerializer):
             return False
         from .models import ShoppingCart
 
-        return ShoppingCart.objects.filter(user=request.user, recipe=obj).exists()
+        return ShoppingCart.objects.filter(
+            user=request.user,
+            recipe=obj,
+        ).exists()
 
 
 class RecipeIngredientWriteSerializer(serializers.Serializer):
@@ -88,7 +95,10 @@ class RecipeIngredientWriteSerializer(serializers.Serializer):
 
 class RecipeCreateSerializer(serializers.ModelSerializer):
     ingredients = RecipeIngredientWriteSerializer(many=True)
-    tags = serializers.ListField(child=serializers.IntegerField(), min_length=1)
+    tags = serializers.ListField(
+        child=serializers.IntegerField(),
+        min_length=1,
+    )
     image = Base64ImageField()
 
     class Meta:
@@ -105,10 +115,14 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
     def validate_ingredients(self, value):
         ids = [i['id'] for i in value]
         if len(ids) != len(set(ids)):
-            raise serializers.ValidationError('Ингредиенты не должны повторяться.')
+            raise serializers.ValidationError(
+                'Ингредиенты не должны повторяться.',
+            )
         found = Ingredient.objects.filter(id__in=ids).count()
         if found != len(set(ids)):
-            raise serializers.ValidationError('Указан несуществующий ингредиент.')
+            raise serializers.ValidationError(
+                'Указан несуществующий ингредиент.',
+            )
         return value
 
     def validate_tags(self, value):
@@ -116,7 +130,9 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('Нужен хотя бы один тег.')
         found = Tag.objects.filter(id__in=value).count()
         if found != len(set(value)):
-            raise serializers.ValidationError('Указан несуществующий тег.')
+            raise serializers.ValidationError(
+                'Указан несуществующий тег.',
+            )
         return value
 
     @transaction.atomic
@@ -140,7 +156,10 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
 
 class RecipeUpdateSerializer(serializers.ModelSerializer):
     ingredients = RecipeIngredientWriteSerializer(many=True)
-    tags = serializers.ListField(child=serializers.IntegerField(), min_length=1)
+    tags = serializers.ListField(
+        child=serializers.IntegerField(),
+        min_length=1,
+    )
     image = Base64ImageField(required=False, allow_null=True)
 
     class Meta:
@@ -157,10 +176,14 @@ class RecipeUpdateSerializer(serializers.ModelSerializer):
     def validate_ingredients(self, value):
         ids = [i['id'] for i in value]
         if len(ids) != len(set(ids)):
-            raise serializers.ValidationError('Ингредиенты не должны повторяться.')
+            raise serializers.ValidationError(
+                'Ингредиенты не должны повторяться.',
+            )
         found = Ingredient.objects.filter(id__in=ids).count()
         if found != len(set(ids)):
-            raise serializers.ValidationError('Указан несуществующий ингредиент.')
+            raise serializers.ValidationError(
+                'Указан несуществующий ингредиент.',
+            )
         return value
 
     def validate_tags(self, value):
@@ -168,7 +191,9 @@ class RecipeUpdateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('Нужен хотя бы один тег.')
         found = Tag.objects.filter(id__in=value).count()
         if found != len(set(value)):
-            raise serializers.ValidationError('Указан несуществующий тег.')
+            raise serializers.ValidationError(
+                'Указан несуществующий тег.',
+            )
         return value
 
     @transaction.atomic

@@ -3,7 +3,6 @@ from pathlib import Path
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
-
 from recipes.models import Ingredient
 
 
@@ -15,7 +14,10 @@ class Command(BaseCommand):
             '--path',
             type=str,
             default=None,
-            help='Путь к JSON (по умолчанию: <корень репозитория>/data/ingredients.json)',
+            help=(
+                'Путь к JSON (по умолчанию: '
+                '<корень репозитория>/data/ingredients.json)'
+            ),
         )
 
     def handle(self, *args, **options):
@@ -26,7 +28,11 @@ class Command(BaseCommand):
             # При запуске из клона репозитория сработает ../data (корень репо).
             path = Path(settings.BASE_DIR) / 'data' / 'ingredients.json'
             if not path.is_file():
-                alt = Path(settings.BASE_DIR).parent / 'data' / 'ingredients.json'
+                alt = (
+                    Path(settings.BASE_DIR).parent
+                    / 'data'
+                    / 'ingredients.json'
+                )
                 if alt.is_file():
                     path = alt
 
@@ -52,6 +58,7 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                f'Готово: создано {created}, уже были в БД {skipped}, всего строк в файле {len(items)}.'
+                f'Готово: создано {created}, уже были в БД {skipped}, '
+                f'всего строк в файле {len(items)}.'
             )
         )

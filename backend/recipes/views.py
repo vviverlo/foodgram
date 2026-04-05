@@ -10,14 +10,9 @@ from rest_framework.response import Response
 
 from .models import Favorite, Ingredient, Recipe, ShoppingCart, Tag
 from .permissions import IsAuthorOrReadOnly
-from .serializers import (
-    IngredientSerializer,
-    RecipeCreateSerializer,
-    RecipeListSerializer,
-    RecipeMinifiedSerializer,
-    RecipeUpdateSerializer,
-    TagSerializer,
-)
+from .serializers import (IngredientSerializer, RecipeCreateSerializer,
+                          RecipeListSerializer, RecipeMinifiedSerializer,
+                          RecipeUpdateSerializer, TagSerializer)
 
 
 class TagViewSet(viewsets.ReadOnlyModelViewSet):
@@ -169,6 +164,11 @@ class RecipeViewSet(viewsets.ModelViewSet):
         content = '\n'.join(lines)
         if content:
             content += '\n'
-        response = HttpResponse(content, content_type='text/plain; charset=utf-8')
-        response['Content-Disposition'] = 'attachment; filename="shopping-list.txt"'
+        response = HttpResponse(
+            content,
+            content_type='text/plain; charset=utf-8',
+        )
+        response['Content-Disposition'] = (
+            'attachment; filename="shopping-list.txt"'
+        )
         return response

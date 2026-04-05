@@ -1,8 +1,19 @@
 from django.contrib.auth import get_user_model
-from django.contrib.auth.password_validation import validate_password
+from djoser.serializers import \
+    UserCreateSerializer as DjoserUserCreateSerializer
+from recipes.fields import Base64ImageField
 from rest_framework import serializers
 
+from .models import Subscription
+
 User = get_user_model()
+
+
+class UserCreateSerializer(DjoserUserCreateSerializer):
+    """Регистрация: имя и фамилия обязательны (тесты Postman)."""
+
+    first_name = serializers.CharField(max_length=150)
+    last_name = serializers.CharField(max_length=150)
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -25,106 +36,26 @@ class UserSerializer(serializers.ModelSerializer):
         if self.context.get('force_subscribed'):
             return True
         request = self.context.get('request')
-        if not request or not request.user.is_authenticated:
-            return False
-        if obj.pk == request.user.pk:
-            return False
-        from recipes.models import Subscription
-
-        return Subscription.objects.filter(
-            user=request.user,
-            author=obj,
-        ).exists()
+        return (
+            request is not None
+            and request.user.is_authenticated
+            and obj.pk != request.user.pk
+            and Subscription.objects.filter(
+                user=request.user,
+                author=obj,
+            ).exists()
+        )
 
     def get_avatar(self, obj):
-        if not obj.avatar:
-            return None
-        request = self.context.get('request')
-        url = obj.avatar.url
-        if request:
-            return request.build_absolute_uri(url)
-        return url
+        return obj.avatar.url if obj.avatar else None
 
 
-class UserCreateSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True)
-
-    class Meta:
-        model = User
-        fields = (
-            'id',
-            'email',
-            'username',
-            'first_name',
-            'last_name',
-            'password',
-        )
-        read_only_fields = ('id',)
-
-    def validate(self, attrs):
-        user = User(
-            email=attrs.get('email'),
-            username=attrs.get('username'),
-            first_name=attrs.get('first_name'),
-            last_name=attrs.get('last_name'),
-        )
-        validate_password(attrs['password'], user)
-        return attrs
-
-    def create(self, validated_data):
-        password = validated_data.pop('password')
-        return User.objects.create_user(
-            email=validated_data['email'],
-            password=password,
-            username=validated_data['username'],
-            first_name=validated_data['first_name'],
-            last_name=validated_data['last_name'],
-        )
-
-
-class UserWithRecipesSerializer(serializers.ModelSerializer):
-    is_subscribed = serializers.SerializerMethodField()
-    avatar = serializers.SerializerMethodField()
+class SubscriptionUserSerializer(UserSerializer):
     recipes = serializers.SerializerMethodField()
     recipes_count = serializers.SerializerMethodField()
 
-    class Meta:
-        model = User
-        fields = (
-            'id',
-            'email',
-            'username',
-            'first_name',
-            'last_name',
-            'is_subscribed',
-            'avatar',
-            'recipes',
-            'recipes_count',
-        )
-
-    def get_is_subscribed(self, obj):
-        if self.context.get('force_subscribed'):
-            return True
-        request = self.context.get('request')
-        if not request or not request.user.is_authenticated:
-            return False
-        if obj.pk == request.user.pk:
-            return False
-        from recipes.models import Subscription
-
-        return Subscription.objects.filter(
-            user=request.user,
-            author=obj,
-        ).exists()
-
-    def get_avatar(self, obj):
-        if not obj.avatar:
-            return None
-        request = self.context.get('request')
-        url = obj.avatar.url
-        if request:
-            return request.build_absolute_uri(url)
-        return url
+    class Meta(UserSerializer.Meta):
+        fields = UserSerializer.Meta.fields + ('recipes', 'recipes_count')
 
     def get_recipes(self, obj):
         from recipes.serializers import RecipeMinifiedSerializer
@@ -148,12 +79,9 @@ class UserWithRecipesSerializer(serializers.ModelSerializer):
         return obj.recipes.count()
 
 
-class SetAvatarSerializer(serializers.Serializer):
-    avatar = serializers.CharField()
+class SetAvatarSerializer(serializers.ModelSerializer):
+    avatar = Base64ImageField(required=True, allow_null=False)
 
-    def validate_avatar(self, value):
-        if not value.startswith('data:image'):
-            raise serializers.ValidationError(
-                'Ожидается изображение в Base64.',
-            )
-        return value
+    class Meta:
+        model = User
+        fields = ('avatar',)

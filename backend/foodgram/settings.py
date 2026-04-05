@@ -155,11 +155,11 @@ DJOSER = {
     'HIDE_USERS': False,
     'SERIALIZERS': {
         'user': 'users.serializers.UserSerializer',
-        'user_create': 'users.serializers.UserCreateSerializer',
         'current_user': 'users.serializers.UserSerializer',
+        'user_create': 'users.serializers.UserCreateSerializer',
     },
     'PERMISSIONS': {
         'user_list': ['rest_framework.permissions.AllowAny'],
-        'user': ['users.permissions.ReadOnlyOrCurrentUserOrAdmin'],
+        'user': ['foodgram.permissions.UserDetailPermission'],
     },
 }

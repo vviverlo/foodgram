@@ -1,11 +1,8 @@
 from rest_framework.permissions import SAFE_METHODS, BasePermission
 
 
-class ReadOnlyOrCurrentUserOrAdmin(BasePermission):
-    """
-    Безопасные методы (GET, HEAD, OPTIONS) — всем, в т.ч. анонимам.
-    PATCH, PUT, DELETE — только сам пользователь или админ.
-    """
+class UserDetailPermission(BasePermission):
+    """GET — всем; изменение профиля — только владельцу."""
 
     def has_permission(self, request, view):
         if request.method in SAFE_METHODS:
@@ -15,5 +12,4 @@ class ReadOnlyOrCurrentUserOrAdmin(BasePermission):
     def has_object_permission(self, request, view, obj):
         if request.method in SAFE_METHODS:
             return True
-        user = request.user
-        return user.is_staff or obj.pk == user.pk
+        return request.user.is_authenticated and obj.pk == request.user.pk

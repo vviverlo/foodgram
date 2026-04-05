@@ -43,18 +43,18 @@ class Command(BaseCommand):
         with path.open(encoding='utf-8') as f:
             items = json.load(f)
 
-        created, skipped = 0, 0
+        unique = {}
         for row in items:
             name = row['name'].strip()
             unit = row['measurement_unit'].strip()
-            obj, was_created = Ingredient.objects.get_or_create(
-                name=name,
-                measurement_unit=unit,
-            )
-            if was_created:
-                created += 1
-            else:
-                skipped += 1
+            unique[(name, unit)] = Ingredient(name=name, measurement_unit=unit)
+
+        to_create = list(unique.values())
+        before = Ingredient.objects.count()
+        Ingredient.objects.bulk_create(to_create, ignore_conflicts=True)
+        after = Ingredient.objects.count()
+        created = after - before
+        skipped = len(to_create) - created
 
         self.stdout.write(
             self.style.SUCCESS(

@@ -1,18 +1,20 @@
-from collections import defaultdict
-
-from django.db.models import Case, IntegerField, When
+from django.db.models import BooleanField, Exists, OuterRef, Sum, Value
 from django.http import HttpResponse
+from django.shortcuts import get_object_or_404, redirect
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import (IsAuthenticated,
+                                        IsAuthenticatedOrReadOnly)
 from rest_framework.response import Response
 
-from .models import Favorite, Ingredient, Recipe, ShoppingCart, Tag
-from .permissions import IsAuthorOrReadOnly
+from .filters import IngredientFilter, RecipeFilter
+from .models import (Favorite, Ingredient, Recipe, RecipeIngredient,
+                     ShoppingCart, Tag)
+from .permissions import OwnerOrReadOnly
 from .serializers import (IngredientSerializer, RecipeCreateSerializer,
                           RecipeListSerializer, RecipeMinifiedSerializer,
-                          RecipeUpdateSerializer, TagSerializer)
+                          TagSerializer)
 
 
 class TagViewSet(viewsets.ReadOnlyModelViewSet):
@@ -22,59 +24,75 @@ class TagViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class IngredientViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Ingredient.objects.order_by('name')
     serializer_class = IngredientSerializer
     pagination_class = None
-
-    def get_queryset(self):
-        queryset = Ingredient.objects.all()
-        name = self.request.query_params.get('name')
-        if name:
-            name = name.strip()
-            queryset = queryset.filter(name__istartswith=name)
-            queryset = queryset.annotate(
-                sort_order=Case(
-                    When(name__iexact=name, then=0),
-                    default=1,
-                    output_field=IntegerField(),
-                )
-            ).order_by('sort_order', 'name')
-        else:
-            queryset = queryset.order_by('name')
-        return queryset
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = IngredientFilter
 
 
 class RecipeViewSet(viewsets.ModelViewSet):
-    queryset = Recipe.objects.select_related('author').prefetch_related(
-        'tags',
-        'recipe_ingredients__ingredient',
-    )
-    permission_classes = (IsAuthorOrReadOnly,)
+    queryset = Recipe.objects.all()
+    permission_classes = (IsAuthenticatedOrReadOnly, OwnerOrReadOnly)
     filter_backends = (DjangoFilterBackend,)
-    filterset_fields = ('author',)
-
-    def get_serializer_class(self):
-        if self.action == 'create':
-            return RecipeCreateSerializer
-        if self.action in ('partial_update', 'update'):
-            return RecipeUpdateSerializer
-        return RecipeListSerializer
+    filterset_class = RecipeFilter
 
     def get_queryset(self):
-        qs = super().get_queryset()
-        tags = self.request.query_params.getlist('tags')
-        if tags:
-            qs = qs.filter(tags__slug__in=tags).distinct()
-        if self.request.query_params.get('is_favorited') == '1':
-            if self.request.user.is_authenticated:
-                qs = qs.filter(favorites__user=self.request.user)
-            else:
-                qs = qs.none()
-        if self.request.query_params.get('is_in_shopping_cart') == '1':
-            if self.request.user.is_authenticated:
-                qs = qs.filter(shopping_cart__user=self.request.user)
-            else:
-                qs = qs.none()
-        return qs.distinct().order_by('-pub_date')
+        qs = Recipe.objects.select_related('author').prefetch_related(
+            'tags',
+            'recipe_ingredients__ingredient',
+        )
+        user = self.request.user
+        if user.is_authenticated:
+            qs = qs.annotate(
+                is_favorited=Exists(
+                    Favorite.objects.filter(
+                        recipe_id=OuterRef('pk'),
+                        user_id=user.pk,
+                    ),
+                ),
+                is_in_shopping_cart=Exists(
+                    ShoppingCart.objects.filter(
+                        recipe_id=OuterRef('pk'),
+                        user_id=user.pk,
+                    ),
+                ),
+            )
+        else:
+            qs = qs.annotate(
+                is_favorited=Value(False, output_field=BooleanField()),
+                is_in_shopping_cart=Value(
+                    False,
+                    output_field=BooleanField(),
+                ),
+            )
+        return qs
+
+    def get_serializer_class(self):
+        if self.action in ('create', 'update', 'partial_update'):
+            return RecipeCreateSerializer
+        return RecipeListSerializer
+
+    def _user_recipe_relation_response(self, request, recipe, relation_model):
+        if request.method == 'POST':
+            _, created = relation_model.objects.get_or_create(
+                user=request.user,
+                recipe=recipe,
+            )
+            if not created:
+                return Response(status=status.HTTP_400_BAD_REQUEST)
+            data = RecipeMinifiedSerializer(
+                recipe,
+                context={'request': request},
+            ).data
+            return Response(data, status=status.HTTP_201_CREATED)
+        deleted, _ = relation_model.objects.filter(
+            user=request.user,
+            recipe=recipe,
+        ).delete()
+        if not deleted:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(
         detail=True,
@@ -84,25 +102,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
     )
     def favorite(self, request, pk=None):
         recipe = self.get_object()
-        if request.method == 'POST':
-            _obj, created = Favorite.objects.get_or_create(
-                user=request.user,
-                recipe=recipe,
-            )
-            if not created:
-                return Response(status=status.HTTP_400_BAD_REQUEST)
-            data = RecipeMinifiedSerializer(
-                recipe,
-                context={'request': request},
-            ).data
-            return Response(data, status=status.HTTP_201_CREATED)
-        deleted, _ = Favorite.objects.filter(
-            user=request.user,
-            recipe=recipe,
-        ).delete()
-        if not deleted:
-            return Response(status=status.HTTP_400_BAD_REQUEST)
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return self._user_recipe_relation_response(request, recipe, Favorite)
 
     @action(
         detail=True,
@@ -112,25 +112,11 @@ class RecipeViewSet(viewsets.ModelViewSet):
     )
     def shopping_cart(self, request, pk=None):
         recipe = self.get_object()
-        if request.method == 'POST':
-            _obj, created = ShoppingCart.objects.get_or_create(
-                user=request.user,
-                recipe=recipe,
-            )
-            if not created:
-                return Response(status=status.HTTP_400_BAD_REQUEST)
-            data = RecipeMinifiedSerializer(
-                recipe,
-                context={'request': request},
-            ).data
-            return Response(data, status=status.HTTP_201_CREATED)
-        deleted, _ = ShoppingCart.objects.filter(
-            user=request.user,
-            recipe=recipe,
-        ).delete()
-        if not deleted:
-            return Response(status=status.HTTP_400_BAD_REQUEST)
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return self._user_recipe_relation_response(
+            request,
+            recipe,
+            ShoppingCart,
+        )
 
     @action(detail=True, methods=('get',), url_path='get-link')
     def get_link(self, request, pk=None):
@@ -146,21 +132,24 @@ class RecipeViewSet(viewsets.ModelViewSet):
         url_path='download_shopping_cart',
     )
     def download_shopping_cart(self, request):
-        recipes = Recipe.objects.filter(
-            shopping_cart__user=request.user,
-        ).prefetch_related(
-            'recipe_ingredients__ingredient',
+        rows = (
+            RecipeIngredient.objects.filter(
+                recipe__recipes_shoppingcart__user=request.user,
+            )
+            .values(
+                'ingredient__name',
+                'ingredient__measurement_unit',
+            )
+            .annotate(total=Sum('amount'))
+            .order_by('ingredient__name')
         )
-        totals = defaultdict(int)
-        for recipe in recipes:
-            for ri in recipe.recipe_ingredients.all():
-                totals[ri.ingredient_id] += ri.amount
-        lines = []
-        for ing in Ingredient.objects.filter(
-            pk__in=totals.keys(),
-        ).order_by('name'):
-            amount = totals[ing.id]
-            lines.append(f'{ing.name} ({ing.measurement_unit}) — {amount}')
+        lines = [
+            (
+                f"{row['ingredient__name']} "
+                f"({row['ingredient__measurement_unit']}) — {row['total']}"
+            )
+            for row in rows
+        ]
         content = '\n'.join(lines)
         if content:
             content += '\n'
@@ -172,3 +161,9 @@ class RecipeViewSet(viewsets.ModelViewSet):
             'attachment; filename="shopping-list.txt"'
         )
         return response
+
+
+def recipe_short_link_redirect(request, short_code):
+    """Редирект с короткой ссылки на страницу рецепта во фронтенде."""
+    recipe = get_object_or_404(Recipe, short_code=short_code)
+    return redirect(f'/recipes/{recipe.pk}/')

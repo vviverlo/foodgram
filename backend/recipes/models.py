@@ -5,12 +5,26 @@ from django.contrib.auth import get_user_model
 from django.core.validators import MinValueValidator
 from django.db import models
 
+from .constants import (INGREDIENT_NAME_MAX_LENGTH, INGREDIENT_UNIT_MAX_LENGTH,
+                        RECIPE_NAME_MAX_LENGTH,
+                        RECIPE_SHORT_CODE_GENERATED_LENGTH,
+                        RECIPE_SHORT_CODE_MAX_LENGTH, TAG_NAME_MAX_LENGTH,
+                        TAG_SLUG_MAX_LENGTH)
+
 User = get_user_model()
 
 
 class Tag(models.Model):
-    name = models.CharField('Название', max_length=32, unique=True)
-    slug = models.SlugField('Слаг', max_length=32, unique=True)
+    name = models.CharField(
+        'Название',
+        max_length=TAG_NAME_MAX_LENGTH,
+        unique=True,
+    )
+    slug = models.SlugField(
+        'Слаг',
+        max_length=TAG_SLUG_MAX_LENGTH,
+        unique=True,
+    )
 
     class Meta:
         ordering = ('name',)
@@ -22,13 +36,25 @@ class Tag(models.Model):
 
 
 class Ingredient(models.Model):
-    name = models.CharField('Название', max_length=128)
-    measurement_unit = models.CharField('Единица измерения', max_length=64)
+    name = models.CharField(
+        'Название',
+        max_length=INGREDIENT_NAME_MAX_LENGTH,
+    )
+    measurement_unit = models.CharField(
+        'Единица измерения',
+        max_length=INGREDIENT_UNIT_MAX_LENGTH,
+    )
 
     class Meta:
         ordering = ('name',)
         verbose_name = 'Ингредиент'
         verbose_name_plural = 'Ингредиенты'
+        constraints = [
+            models.UniqueConstraint(
+                fields=('name', 'measurement_unit'),
+                name='recipes_ingredient_name_unit_uniq',
+            ),
+        ]
 
     def __str__(self):
         return f'{self.name}, {self.measurement_unit}'
@@ -41,7 +67,10 @@ class Recipe(models.Model):
         related_name='recipes',
         verbose_name='Автор',
     )
-    name = models.CharField('Название', max_length=256)
+    name = models.CharField(
+        'Название',
+        max_length=RECIPE_NAME_MAX_LENGTH,
+    )
     image = models.ImageField('Картинка', upload_to='recipes/images/')
     text = models.TextField('Описание')
     cooking_time = models.PositiveIntegerField(
@@ -51,7 +80,7 @@ class Recipe(models.Model):
     pub_date = models.DateTimeField('Дата публикации', auto_now_add=True)
     short_code = models.CharField(
         'Короткий код ссылки',
-        max_length=16,
+        max_length=RECIPE_SHORT_CODE_MAX_LENGTH,
         unique=True,
         editable=False,
     )
@@ -78,7 +107,10 @@ class Recipe(models.Model):
     def _generate_unique_short_code(self):
         alphabet = string.ascii_letters + string.digits
         while True:
-            code = ''.join(secrets.choice(alphabet) for _ in range(10))
+            code = ''.join(
+                secrets.choice(alphabet)
+                for _ in range(RECIPE_SHORT_CODE_GENERATED_LENGTH)
+            )
             qs = Recipe.objects.filter(short_code=code)
             if self.pk:
                 qs = qs.exclude(pk=self.pk)
@@ -113,7 +145,7 @@ class RecipeIngredient(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=('recipe', 'ingredient'),
-                name='unique_recipe_ingredient',
+                name='%(app_label)s_%(class)s_recipe_ingredient_uniq',
             ),
         ]
 
@@ -121,80 +153,39 @@ class RecipeIngredient(models.Model):
         return f'{self.ingredient} — {self.amount}'
 
 
-class Favorite(models.Model):
+class UserRecipeRelation(models.Model):
+    """Общая связь пользователь — рецепт (избранное, список покупок)."""
+
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
-        related_name='favorites',
+        related_name='%(app_label)s_%(class)s',
         verbose_name='Пользователь',
     )
     recipe = models.ForeignKey(
         Recipe,
         on_delete=models.CASCADE,
-        related_name='favorites',
+        related_name='%(app_label)s_%(class)s',
         verbose_name='Рецепт',
     )
 
+    class Meta:
+        abstract = True
+        constraints = [
+            models.UniqueConstraint(
+                fields=('user', 'recipe'),
+                name='%(app_label)s_%(class)s_user_recipe_uniq',
+            ),
+        ]
+
+
+class Favorite(UserRecipeRelation):
     class Meta:
         verbose_name = 'Избранное'
         verbose_name_plural = 'Избранное'
-        constraints = [
-            models.UniqueConstraint(
-                fields=('user', 'recipe'),
-                name='unique_user_recipe_favorite',
-            ),
-        ]
 
 
-class ShoppingCart(models.Model):
-    user = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        related_name='shopping_cart',
-        verbose_name='Пользователь',
-    )
-    recipe = models.ForeignKey(
-        Recipe,
-        on_delete=models.CASCADE,
-        related_name='shopping_cart',
-        verbose_name='Рецепт',
-    )
-
+class ShoppingCart(UserRecipeRelation):
     class Meta:
         verbose_name = 'Список покупок'
         verbose_name_plural = 'Список покупок'
-        constraints = [
-            models.UniqueConstraint(
-                fields=('user', 'recipe'),
-                name='unique_user_recipe_cart',
-            ),
-        ]
-
-
-class Subscription(models.Model):
-    user = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        related_name='subscriptions',
-        verbose_name='Подписчик',
-    )
-    author = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        related_name='subscribers',
-        verbose_name='Автор',
-    )
-
-    class Meta:
-        verbose_name = 'Подписка'
-        verbose_name_plural = 'Подписки'
-        constraints = [
-            models.UniqueConstraint(
-                fields=('user', 'author'),
-                name='unique_user_author_subscription',
-            ),
-            models.CheckConstraint(
-                check=~models.Q(user=models.F('author')),
-                name='subscription_not_self',
-            ),
-        ]

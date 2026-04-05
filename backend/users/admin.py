@@ -1,12 +1,28 @@
 from django.contrib import admin
-from django.contrib.auth.admin import UserAdmin
+from django.contrib.auth import get_user_model
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from django.db.models import Count
 
-from .models import User
+from .models import Subscription
+
+User = get_user_model()
+
+
+@admin.register(Subscription)
+class SubscriptionAdmin(admin.ModelAdmin):
+    list_display = ('user', 'author')
 
 
 @admin.register(User)
-class CustomUserAdmin(UserAdmin):
-    list_display = ('email', 'username', 'first_name', 'last_name', 'is_staff')
+class UserAdmin(BaseUserAdmin):
+    list_display = (
+        'email',
+        'username',
+        'first_name',
+        'last_name',
+        'recipes_count',
+        'is_staff',
+    )
     search_fields = ('email', 'username')
     ordering = ('email',)
 
@@ -53,3 +69,11 @@ class CustomUserAdmin(UserAdmin):
             },
         ),
     )
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.annotate(_recipes_count=Count('recipes'))
+
+    @admin.display(description='Рецептов', ordering='_recipes_count')
+    def recipes_count(self, obj):
+        return obj._recipes_count

@@ -2,9 +2,11 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
+from recipes.views import recipe_short_link_redirect
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('s/<str:short_code>/', recipe_short_link_redirect),
     path('api/auth/', include('djoser.urls.authtoken')),
     path('api/', include('users.urls')),
     path('api/', include('recipes.urls')),

@@ -1,20 +1,15 @@
 from rest_framework.permissions import SAFE_METHODS, BasePermission
 
 
-class IsAuthorOrReadOnly(BasePermission):
+class OwnerOrReadOnly(BasePermission):
     """
-    GET — всем; POST — авторизованным;
-    изменение/удаление — только автору рецепта.
+    GET, HEAD, OPTIONS — всем; изменение и удаление — только автору объекта.
+    Аутентификация для небезопасных методов задаётся через
+    IsAuthenticatedOrReadOnly во вьюсете.
     """
-
-    def has_permission(self, request, view):
-        if request.method in SAFE_METHODS:
-            return True
-        if request.method == 'POST':
-            return bool(request.user and request.user.is_authenticated)
-        return bool(request.user and request.user.is_authenticated)
 
     def has_object_permission(self, request, view, obj):
-        if request.method in SAFE_METHODS:
-            return True
-        return obj.author_id == request.user.id
+        return (
+            request.method in SAFE_METHODS
+            or obj.author == request.user
+        )

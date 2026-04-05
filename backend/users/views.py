@@ -1,18 +1,23 @@
 from django.contrib.auth import get_user_model
 from djoser.views import UserViewSet as DjoserUserViewSet
-from recipes.fields import Base64ImageField
-from recipes.models import Subscription
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .serializers import SetAvatarSerializer, UserWithRecipesSerializer
+from .models import Subscription
+from .serializers import SetAvatarSerializer, SubscriptionUserSerializer
 
 User = get_user_model()
 
 
 class UserViewSet(DjoserUserViewSet):
+    def get_permissions(self):
+        if getattr(self, 'action', None) == 'me':
+            self.permission_classes = (IsAuthenticated,)
+            return super().get_permissions()
+        return super().get_permissions()
+
     @action(
         detail=False,
         methods=('get',),
@@ -29,7 +34,7 @@ class UserViewSet(DjoserUserViewSet):
         context = self.get_serializer_context()
         context['recipes_limit'] = request.query_params.get('recipes_limit')
         context['force_subscribed'] = True
-        serializer = UserWithRecipesSerializer(
+        serializer = SubscriptionUserSerializer(
             page,
             many=True,
             context=context,
@@ -46,19 +51,19 @@ class UserViewSet(DjoserUserViewSet):
     )
     def subscribe(self, request, **kwargs):
         author = self.get_object()
-        if author.id == request.user.id:
-            return Response(status=status.HTTP_400_BAD_REQUEST)
         context = self.get_serializer_context()
         context['recipes_limit'] = request.query_params.get('recipes_limit')
         context['force_subscribed'] = True
         if request.method == 'POST':
-            _sub, created = Subscription.objects.get_or_create(
+            if author.pk == request.user.pk:
+                return Response(status=status.HTTP_400_BAD_REQUEST)
+            _, created = Subscription.objects.get_or_create(
                 user=request.user,
                 author=author,
             )
             if not created:
                 return Response(status=status.HTTP_400_BAD_REQUEST)
-            data = UserWithRecipesSerializer(
+            data = SubscriptionUserSerializer(
                 author,
                 context=context,
             ).data
@@ -79,15 +84,13 @@ class UserViewSet(DjoserUserViewSet):
     )
     def avatar(self, request):
         if request.method == 'PUT':
-            serializer = SetAvatarSerializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
-            field = Base64ImageField()
-            request.user.avatar = field.to_internal_value(
-                serializer.validated_data['avatar'],
+            serializer = SetAvatarSerializer(
+                request.user,
+                data=request.data,
             )
-            request.user.save(update_fields=['avatar'])
-            url = request.build_absolute_uri(request.user.avatar.url)
-            return Response({'avatar': url})
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response({'avatar': request.user.avatar.url})
         if request.user.avatar:
             request.user.avatar.delete(save=False)
         request.user.avatar = None

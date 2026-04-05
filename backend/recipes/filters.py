@@ -1,8 +1,9 @@
-from django.db.models import Case, IntegerField, Q, When
+from django.db.models import Case, IntegerField, When
 from django_filters import CharFilter
-from django_filters.rest_framework import BooleanFilter, FilterSet
+from django_filters.rest_framework import (BooleanFilter, FilterSet,
+                                           ModelMultipleChoiceFilter)
 
-from .models import Ingredient, Recipe
+from .models import Ingredient, Recipe, Tag
 
 
 class IngredientFilter(FilterSet):
@@ -30,38 +31,14 @@ class IngredientFilter(FilterSet):
 
 
 class RecipeFilter(FilterSet):
-    tags = CharFilter(method='filter_tags_by_slug')
-    is_favorited = BooleanFilter(method='filter_is_favorited')
-    is_in_shopping_cart = BooleanFilter(method='filter_is_in_shopping_cart')
+    tags = ModelMultipleChoiceFilter(
+        field_name='tags__slug',
+        queryset=Tag.objects.all(),
+        to_field_name='slug',
+    )
+    is_favorited = BooleanFilter(field_name='is_favorited')
+    is_in_shopping_cart = BooleanFilter(field_name='is_in_shopping_cart')
 
     class Meta:
         model = Recipe
         fields = ('tags', 'author', 'is_favorited', 'is_in_shopping_cart')
-
-    def filter_tags_by_slug(self, queryset, name, value):
-        slugs = self.data.getlist('tags')
-        if not slugs:
-            return queryset
-        q = Q()
-        for slug in slugs:
-            q |= Q(tags__slug=slug)
-        return queryset.filter(q).distinct()
-
-    def filter_is_favorited(self, queryset, name, value):
-        if not value:
-            return queryset
-        user = self.request.user
-        if not user.is_authenticated:
-            return queryset.none()
-        return queryset.filter(recipes_favorite__user=user)
-
-    def filter_is_in_shopping_cart(self, queryset, name, value):
-        if not value:
-            return queryset
-        user = self.request.user
-        if not user.is_authenticated:
-            return queryset.none()
-        return queryset.filter(recipes_shoppingcart__user=user)
-
-    def filter_queryset(self, queryset):
-        return super().filter_queryset(queryset).distinct()

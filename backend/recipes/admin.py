@@ -11,6 +11,18 @@ class RecipeIngredientInline(admin.TabularInline):
     extra = 0
 
 
+class RecipesCountAdminMixin:
+    """Аннотация количества связанных рецептов для списка в админке."""
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.annotate(_recipes_count=Count('recipes', distinct=True))
+
+    @admin.display(description='Рецептов', ordering='_recipes_count')
+    def recipes_count(self, obj):
+        return obj._recipes_count
+
+
 @admin.register(Recipe)
 class RecipeAdmin(admin.ModelAdmin):
     list_display = ('name', 'author', 'pub_date', 'favorite_count')
@@ -30,31 +42,15 @@ class RecipeAdmin(admin.ModelAdmin):
 
 
 @admin.register(Tag)
-class TagAdmin(admin.ModelAdmin):
+class TagAdmin(RecipesCountAdminMixin, admin.ModelAdmin):
     list_display = ('name', 'slug', 'recipes_count')
     search_fields = ('name', 'slug')
 
-    def get_queryset(self, request):
-        qs = super().get_queryset(request)
-        return qs.annotate(_recipes_count=Count('recipes', distinct=True))
-
-    @admin.display(description='Рецептов', ordering='_recipes_count')
-    def recipes_count(self, obj):
-        return obj._recipes_count
-
 
 @admin.register(Ingredient)
-class IngredientAdmin(admin.ModelAdmin):
+class IngredientAdmin(RecipesCountAdminMixin, admin.ModelAdmin):
     list_display = ('name', 'measurement_unit', 'recipes_count')
     search_fields = ('name',)
-
-    def get_queryset(self, request):
-        qs = super().get_queryset(request)
-        return qs.annotate(_recipes_count=Count('recipes', distinct=True))
-
-    @admin.display(description='Рецептов', ordering='_recipes_count')
-    def recipes_count(self, obj):
-        return obj._recipes_count
 
 
 @admin.register(Favorite)

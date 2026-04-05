@@ -1,6 +1,6 @@
-from django.db.models import BooleanField, Exists, OuterRef, Sum, Value
+from django.db.models import Sum
 from django.http import HttpResponse
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import redirect
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -42,31 +42,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
             'tags',
             'recipe_ingredients__ingredient',
         )
-        user = self.request.user
-        if user.is_authenticated:
-            qs = qs.annotate(
-                is_favorited=Exists(
-                    Favorite.objects.filter(
-                        recipe_id=OuterRef('pk'),
-                        user_id=user.pk,
-                    ),
-                ),
-                is_in_shopping_cart=Exists(
-                    ShoppingCart.objects.filter(
-                        recipe_id=OuterRef('pk'),
-                        user_id=user.pk,
-                    ),
-                ),
-            )
-        else:
-            qs = qs.annotate(
-                is_favorited=Value(False, output_field=BooleanField()),
-                is_in_shopping_cart=Value(
-                    False,
-                    output_field=BooleanField(),
-                ),
-            )
-        return qs
+        return qs.with_user_recipe_flags(self.request.user)
 
     def get_serializer_class(self):
         if self.action in ('create', 'update', 'partial_update'):
@@ -165,5 +141,8 @@ class RecipeViewSet(viewsets.ModelViewSet):
 
 def recipe_short_link_redirect(request, short_code):
     """Редирект с короткой ссылки на страницу рецепта во фронтенде."""
-    recipe = get_object_or_404(Recipe, short_code=short_code)
+    try:
+        recipe = Recipe.objects.get(short_code=short_code)
+    except Recipe.DoesNotExist:
+        return redirect('/not-found')
     return redirect(f'/recipes/{recipe.pk}/')

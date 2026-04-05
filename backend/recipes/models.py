@@ -4,6 +4,7 @@ import string
 from django.contrib.auth import get_user_model
 from django.core.validators import MinValueValidator
 from django.db import models
+from django.db.models import BooleanField, Exists, OuterRef, Value
 
 from .constants import (INGREDIENT_NAME_MAX_LENGTH, INGREDIENT_UNIT_MAX_LENGTH,
                         RECIPE_NAME_MAX_LENGTH,
@@ -60,6 +61,33 @@ class Ingredient(models.Model):
         return f'{self.name}, {self.measurement_unit}'
 
 
+class RecipeQuerySet(models.QuerySet):
+    def with_user_recipe_flags(self, user):
+        qs = self
+        if user.is_authenticated:
+            return qs.annotate(
+                is_favorited=Exists(
+                    Favorite.objects.filter(
+                        recipe_id=OuterRef('pk'),
+                        user_id=user.pk,
+                    ),
+                ),
+                is_in_shopping_cart=Exists(
+                    ShoppingCart.objects.filter(
+                        recipe_id=OuterRef('pk'),
+                        user_id=user.pk,
+                    ),
+                ),
+            )
+        return qs.annotate(
+            is_favorited=Value(False, output_field=BooleanField()),
+            is_in_shopping_cart=Value(
+                False,
+                output_field=BooleanField(),
+            ),
+        )
+
+
 class Recipe(models.Model):
     author = models.ForeignKey(
         User,
@@ -95,6 +123,8 @@ class Recipe(models.Model):
         related_name='recipes',
         verbose_name='Ингредиенты',
     )
+
+    objects = RecipeQuerySet.as_manager()
 
     class Meta:
         ordering = ('-pub_date',)
@@ -180,12 +210,14 @@ class UserRecipeRelation(models.Model):
 
 
 class Favorite(UserRecipeRelation):
-    class Meta:
+    class Meta(UserRecipeRelation.Meta):
+        abstract = False
         verbose_name = 'Избранное'
         verbose_name_plural = 'Избранное'
 
 
 class ShoppingCart(UserRecipeRelation):
-    class Meta:
+    class Meta(UserRecipeRelation.Meta):
+        abstract = False
         verbose_name = 'Список покупок'
         verbose_name_plural = 'Список покупок'

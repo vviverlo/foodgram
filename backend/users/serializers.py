@@ -1,19 +1,10 @@
 from django.contrib.auth import get_user_model
-from djoser.serializers import \
-    UserCreateSerializer as DjoserUserCreateSerializer
 from recipes.fields import Base64ImageField
 from rest_framework import serializers
 
 from .models import Subscription
 
 User = get_user_model()
-
-
-class UserCreateSerializer(DjoserUserCreateSerializer):
-    """Регистрация: имя и фамилия обязательны (тесты Postman)."""
-
-    first_name = serializers.CharField(max_length=150)
-    last_name = serializers.CharField(max_length=150)
 
 
 class UserSerializer(serializers.ModelSerializer):

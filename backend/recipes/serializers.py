@@ -31,7 +31,6 @@ class RecipeIngredientReadSerializer(serializers.ModelSerializer):
         source='ingredient.measurement_unit',
         read_only=True,
     )
-    amount = serializers.IntegerField(min_value=1)
 
     class Meta:
         model = RecipeIngredient
@@ -46,8 +45,14 @@ class RecipeListSerializer(serializers.ModelSerializer):
         read_only=True,
         source='recipe_ingredients',
     )
-    is_favorited = serializers.SerializerMethodField()
-    is_in_shopping_cart = serializers.SerializerMethodField()
+    is_favorited = serializers.BooleanField(
+        read_only=True,
+        default=False,
+    )
+    is_in_shopping_cart = serializers.BooleanField(
+        read_only=True,
+        default=False,
+    )
     image = serializers.SerializerMethodField()
 
     class Meta:
@@ -65,14 +70,6 @@ class RecipeListSerializer(serializers.ModelSerializer):
             'cooking_time',
         )
 
-    def get_is_favorited(self, obj):
-        v = getattr(obj, 'is_favorited', None)
-        return bool(v) if v is not None else False
-
-    def get_is_in_shopping_cart(self, obj):
-        v = getattr(obj, 'is_in_shopping_cart', None)
-        return bool(v) if v is not None else False
-
     def get_image(self, obj):
         return obj.image.url if obj.image else None
 
@@ -83,7 +80,7 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
         many=True,
         queryset=Tag.objects.all(),
     )
-    image = Base64ImageField()
+    image = Base64ImageField(required=False, allow_null=True)
 
     class Meta:
         model = Recipe
@@ -96,46 +93,17 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
             'cooking_time',
         )
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        if self.instance is not None:
-            self.fields['image'].required = False
-            self.fields['image'].allow_null = True
+    def validate_image(self, value):
+        if not value:
+            raise serializers.ValidationError(
+                'Нужно прикрепить изображение.',
+            )
+        return value
 
     def validate(self, attrs):
-        creating = self.instance is None
-        initial = getattr(self, 'initial_data', {}) or {}
-
-        if creating:
-            ingredients = attrs.get('ingredients')
-            tags = attrs.get('tags')
-            if not ingredients:
-                raise serializers.ValidationError(
-                    {'ingredients': 'Обязательное поле.'},
-                )
-            ingredient_keys = [row['ingredient'].pk for row in ingredients]
-            if len(ingredient_keys) != len(set(ingredient_keys)):
-                raise serializers.ValidationError(
-                    {'ingredients': 'Ингредиенты не должны повторяться.'},
-                )
-            if not tags:
-                raise serializers.ValidationError(
-                    {'tags': 'Нужен хотя бы один тег.'},
-                )
-            tag_ids = [tag.pk for tag in tags]
-            if len(tag_ids) != len(set(tag_ids)):
-                raise serializers.ValidationError(
-                    {'tags': 'Теги не должны повторяться.'},
-                )
-            return attrs
-
-        if 'ingredients' not in initial:
+        if self.instance is None and 'image' not in (self.initial_data or {}):
             raise serializers.ValidationError(
-                {'ingredients': 'Обязательное поле.'},
-            )
-        if 'tags' not in initial:
-            raise serializers.ValidationError(
-                {'tags': 'Нужен хотя бы один тег.'},
+                {'image': 'Нужно прикрепить изображение.'},
             )
 
         ingredients = attrs.get('ingredients')
@@ -186,15 +154,13 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
 
     @transaction.atomic
     def update(self, instance, validated_data):
-        ingredients_rows = validated_data.pop('ingredients', None)
-        tags = validated_data.pop('tags', None)
+        ingredients_rows = validated_data.pop('ingredients')
+        tags = validated_data.pop('tags')
         instance = super().update(instance, validated_data)
-        if tags is not None:
-            instance.tags.clear()
-            instance.tags.set(tags)
-        if ingredients_rows is not None:
-            instance.ingredients.clear()
-            self._set_recipe_ingredients(instance, ingredients_rows)
+        instance.tags.clear()
+        instance.tags.set(tags)
+        instance.ingredients.clear()
+        self._set_recipe_ingredients(instance, ingredients_rows)
         return instance
 
     def to_representation(self, instance):

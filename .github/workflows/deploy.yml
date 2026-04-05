@@ -1,6 +1,3 @@
-# Ручной запуск: Actions → Deploy → Run workflow
-# Или автоматически при push в main
-
 name: Deploy to server
 
 on:
@@ -50,3 +47,19 @@ jobs:
             cd infra
             docker compose -f docker-compose.production.yml --env-file .env pull
             docker compose -f docker-compose.production.yml --env-file .env up -d
+
+  notify:
+    name: Telegram — успешный деплой
+    needs: server
+    runs-on: ubuntu-latest
+    if: success()
+    steps:
+      - name: Отправить сообщение в Telegram
+        env:
+          TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TG_CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          curl -fsS -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TG_CHAT}" \
+            --data-urlencode "text=✅ Foodgram: деплой успешен%0A📦 ${{ github.repository }}%0A🌿 ${{ github.ref_name }}%0A🔗 ${{ github.sha }}%0A👤 ${{ github.actor }}" \
+            --data-urlencode "disable_web_page_preview=true"

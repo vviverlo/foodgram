@@ -4,17 +4,20 @@ from django.shortcuts import redirect
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import (IsAuthenticated,
-                                        IsAuthenticatedOrReadOnly)
+from rest_framework.permissions import (
+    IsAuthenticated, IsAuthenticatedOrReadOnly,
+)
 from rest_framework.response import Response
 
 from .filters import IngredientFilter, RecipeFilter
-from .models import (Favorite, Ingredient, Recipe, RecipeIngredient,
-                     ShoppingCart, Tag)
+from .models import (
+    Favorite, Ingredient, Recipe, RecipeIngredient, ShoppingCart, Tag,
+)
 from .permissions import OwnerOrReadOnly
-from .serializers import (IngredientSerializer, RecipeCreateSerializer,
-                          RecipeListSerializer, RecipeMinifiedSerializer,
-                          TagSerializer)
+from .serializers import (
+    IngredientSerializer, RecipeCreateSerializer, RecipeListSerializer,
+    RecipeMinifiedSerializer, TagSerializer,
+)
 
 
 class TagViewSet(viewsets.ReadOnlyModelViewSet):

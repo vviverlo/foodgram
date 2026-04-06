@@ -1,7 +1,8 @@
 from django.db.models import Case, IntegerField, When
 from django_filters import CharFilter
-from django_filters.rest_framework import (BooleanFilter, FilterSet,
-                                           ModelMultipleChoiceFilter)
+from django_filters.rest_framework import (
+    BooleanFilter, FilterSet, ModelMultipleChoiceFilter,
+)
 
 from .models import Ingredient, Recipe, Tag
 

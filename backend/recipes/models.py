@@ -6,11 +6,11 @@ from django.core.validators import MinValueValidator
 from django.db import models
 from django.db.models import BooleanField, Exists, OuterRef, Value
 
-from .constants import (INGREDIENT_NAME_MAX_LENGTH, INGREDIENT_UNIT_MAX_LENGTH,
-                        RECIPE_NAME_MAX_LENGTH,
-                        RECIPE_SHORT_CODE_GENERATED_LENGTH,
-                        RECIPE_SHORT_CODE_MAX_LENGTH, TAG_NAME_MAX_LENGTH,
-                        TAG_SLUG_MAX_LENGTH)
+from .constants import (
+    INGREDIENT_NAME_MAX_LENGTH, INGREDIENT_UNIT_MAX_LENGTH,
+    RECIPE_NAME_MAX_LENGTH, RECIPE_SHORT_CODE_GENERATED_LENGTH,
+    RECIPE_SHORT_CODE_MAX_LENGTH, TAG_NAME_MAX_LENGTH, TAG_SLUG_MAX_LENGTH,
+)
 
 User = get_user_model()
 

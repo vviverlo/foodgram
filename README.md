@@ -1,4 +1,4 @@
-# Foodgram
+# Foodcom
 
 **Food Assistant** — a web application for publishing and sharing recipes. Users can create recipe cards with ingredients and tags, follow authors, add recipes to favorites, and build a shopping list from selected dishes.
 

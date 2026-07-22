@@ -38,7 +38,7 @@ General flow: clone the repository on a VPS, configure `.env`, build the fronten
 1. **Clone and environment variables**
 
 ```bash
-git clone https://github.com/vviverlo/foodgram.git foodgram && cd foodgram
+git clone https://github.com/vviverlo/foodgram.git foodcom && cd foodcom
 cp infra/.env.example infra/.env
 ```
 
